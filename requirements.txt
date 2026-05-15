@@ -1,0 +1,17 @@
+streamlit
+langchain
+langchain-community
+langchain-core
+langchain-groq
+faiss-cpu
+pypdf
+sentence-transformers
+huggingface-hub
+deep-translator
+python-dotenv
+ragas
+datasets
+pandas
+numpy
+tqdm
+PyPDF2
