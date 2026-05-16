@@ -6,19 +6,21 @@ from langdetect import detect
 def detect_language(text):
 
     try:
-        language = detect(text)
-
-        return language
+        return detect(text)
 
     except:
-
         return "en"
 
 
-# Translate to English
+# Translate user question to English
 def translate_to_english(text):
 
     try:
+
+        language = detect_language(text)
+
+        if language == "en":
+            return text
 
         translated = GoogleTranslator(
             source='auto',
@@ -27,26 +29,30 @@ def translate_to_english(text):
 
         return translated
 
-    except:
+    except Exception as e:
+
+        print("Translation Error:", e)
 
         return text
 
 
-# Translate back to original language
-def translate_answer(text, target_language):
+# Translate answer back to original language
+def translate_answer(answer, target_language):
 
     try:
 
         if target_language == "en":
-            return text
+            return answer
 
         translated = GoogleTranslator(
             source='en',
             target=target_language
-        ).translate(text)
+        ).translate(answer)
 
         return translated
 
-    except:
+    except Exception as e:
 
-        return text
+        print("Answer Translation Error:", e)
+
+        return answer

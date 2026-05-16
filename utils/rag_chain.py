@@ -1,42 +1,18 @@
+from groq import Groq
+
 import os
 
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
-
-from utils.retriever import get_retriever
 
 
-# Load environment variables
 load_dotenv()
 
-
-def get_llm():
-
-    groq_api_key = os.getenv("GROQ_API_KEY")
-
-    llm = ChatGroq(
-        groq_api_key=groq_api_key,
-        model_name="llama-3.1-8b-instant"
-    )
-
-    return llm
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 
 
-def generate_answer(question):
-
-    # Load retriever
-    retriever = get_retriever()
-
-    # Retrieve top relevant chunks
-    docs = retriever.invoke(question)
-
-    # Combine retrieved text
-    context = "\n\n".join(
-        [doc.page_content for doc in docs]
-    )
-
-    # Prompt
-    prompt = f"""
+SYSTEM_PROMPT = """
 You are an intelligent multilingual AI assistant.
 
 Answer ONLY from the provided context.
@@ -55,20 +31,46 @@ Rules:
 5. Keep answers concise and accurate.
 
 6. Support multilingual users.
+"""
+
+
+def generate_answer(question, retriever):
+
+    # NEW LANGCHAIN METHOD
+    docs = retriever.invoke(question)
+
+    context = ""
+
+    for doc in docs:
+        context += doc.page_content + "\n"
+
+
+    prompt = f"""
+{SYSTEM_PROMPT}
 
 Context:
 {context}
 
 Question:
 {question}
-
-Answer:
 """
 
-    # Load LLM
-    llm = get_llm()
 
-    # Generate response
-    response = llm.invoke(prompt)
+    response = client.chat.completions.create(
 
-    return response.content, docs
+        model="llama-3.3-70b-versatile",
+
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+
+        temperature=0
+    )
+
+
+    answer = response.choices[0].message.content
+
+    return answer, docs

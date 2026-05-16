@@ -9,183 +9,382 @@ from utils.embeddings import (
 
 from utils.rag_chain import generate_answer
 
-from utils.citation import format_sources
-
 from utils.translator import (
     detect_language,
     translate_to_english,
     translate_answer
 )
 
-from utils.ragas_eval import evaluate_rag
+from utils.ragas_eval import (
+    run_ragas_evaluation
+)
 
 
-# Page config
+# ================= PAGE CONFIG =================
+
 st.set_page_config(
-    page_title="Advanced Multilingual AI Chatbot",
+
+    page_title="Multilingual Multi-Document AI Chatbot",
+
     layout="wide"
 )
 
-# Title
-st.title("🤖 Advanced Multilingual RAG Chatbot")
 
-st.markdown(
-    """
-Supports:
+# ================= TITLE =================
+
+st.title(
+    "📚 Multilingual Multi-Document AI Chatbot"
+)
+
+st.markdown("""
+
+### 🌍 Supported Languages
+
 - English
 - Telugu
 - Hindi
 - Tamil
 - Other Indian Languages
-"""
-)
 
-# Initialize chat history
-if "messages" not in st.session_state:
-
-    st.session_state.messages = []
+""")
 
 
-# Sidebar
-st.sidebar.title("📂 Upload Documents")
+# ================= SESSION STATE =================
+
+if "chat_history" not in st.session_state:
+
+    st.session_state.chat_history = []
+
+
+if "retriever" not in st.session_state:
+
+    st.session_state.retriever = None
+
+
+# ================= SIDEBAR =================
+
+st.sidebar.header("📂 Upload PDF Files")
 
 uploaded_files = st.sidebar.file_uploader(
-    "Upload PDF Files",
-    type="pdf",
+
+    "Upload one or more PDFs",
+
+    type=["pdf"],
+
     accept_multiple_files=True
 )
 
-# Clear chat button
-if st.sidebar.button("🗑️ Clear Chat"):
 
-    st.session_state.messages = []
+# ================= CLEAR CHAT =================
+
+if st.sidebar.button("🗑 Clear Chat"):
+
+    st.session_state.chat_history = []
 
     st.rerun()
 
 
-# Process PDFs
-if uploaded_files:
+# ================= PROCESS PDFs =================
+
+if uploaded_files and st.session_state.retriever is None:
 
     with st.spinner("Processing PDFs..."):
 
         try:
 
-            documents = load_pdfs(uploaded_files)
+            # LOAD PDFS
+
+            documents = load_pdfs(
+                uploaded_files
+            )
 
             if not documents:
-                st.error("No text extracted from PDFs.")
+
+                st.error(
+                    "❌ No text extracted from PDFs."
+                )
+
                 st.stop()
 
-            chunks = split_documents(documents)
+
+            # SPLIT DOCUMENTS
+
+            chunks = split_documents(
+                documents
+            )
 
             if not chunks:
-                st.error("No chunks generated.")
+
+                st.error(
+                    "❌ No chunks generated."
+                )
+
                 st.stop()
 
-            create_vectorstore(chunks)
 
-            st.success("Documents processed successfully!")
+            # VECTORSTORE
 
-            st.write(f"📄 Pages Loaded: {len(documents)}")
+            vectorstore = create_vectorstore(
+                chunks
+            )
 
-            st.write(f"🧩 Chunks Created: {len(chunks)}")
+
+            # RETRIEVER
+
+            retriever = vectorstore.as_retriever(
+
+                search_kwargs={"k": 3}
+            )
+
+            st.session_state.retriever = retriever
+
+            st.success(
+                "✅ PDFs processed successfully!"
+            )
 
         except Exception as e:
 
-            st.error(f"Error processing PDFs: {e}")
+            st.error(
+                f"Error processing PDFs: {e}"
+            )
 
             st.stop()
 
-    # Display old chat messages
-    for message in st.session_state.messages:
 
-        with st.chat_message(message["role"]):
+# ================= MAIN APP =================
 
-            st.markdown(message["content"])
+if st.session_state.retriever is not None:
 
-    # Chat input
-    question = st.chat_input(
-        "Ask a question from uploaded documents..."
+    retriever = st.session_state.retriever
+
+
+    # ================= SHOW CHAT HISTORY =================
+
+    for chat in st.session_state.chat_history:
+
+        with st.chat_message("user"):
+
+            st.write(chat["question"])
+
+
+        with st.chat_message("assistant"):
+
+            st.write(chat["answer"])
+
+
+    # ================= CHAT INPUT =================
+
+    user_question = st.chat_input(
+
+        "Ask questions from uploaded documents..."
     )
 
-    # If user asks question
-    if question:
 
-        # Show user message
-        st.chat_message("user").markdown(question)
+    # ================= QUESTION PROCESSING =================
 
-        # Save user message
-        st.session_state.messages.append(
-            {
-                "role": "user",
-                "content": question
-            }
-        )
+    if user_question:
+
+        # SHOW USER QUESTION
+
+        with st.chat_message("user"):
+
+            st.write(user_question)
+
 
         with st.spinner("Generating answer..."):
 
             try:
 
-                # Detect language
-                user_language = detect_language(question)
+                # ================= LANGUAGE DETECTION =================
 
-                # Translate to English
-                english_question = translate_to_english(question)
+                user_language = detect_language(
+                    user_question
+                )
 
-                # Generate answer
+
+                # ================= TRANSLATE TO ENGLISH =================
+
+                english_question = (
+                    translate_to_english(
+                        user_question
+                    )
+                )
+
+
+                # ================= GENERATE ANSWER =================
+
                 answer, source_docs = generate_answer(
-                    english_question
-                )
 
-                # Translate answer back
-                final_answer = translate_answer(
-                    answer,
-                    user_language
-                )
-
-                # Format sources
-                sources = format_sources(source_docs)
-
-                # RAG evaluation
-                evaluation_result = evaluate_rag(
                     english_question,
-                    answer,
-                    source_docs
+
+                    retriever
                 )
 
-                # Create final response
-                full_response = final_answer
 
-                full_response += "\n\n### 📚 Sources\n"
+                # ================= TRANSLATE BACK =================
 
-                for source in sources:
+                if user_language == "en":
 
-                    full_response += f"- {source}\n"
+                    final_answer = answer
 
-                full_response += "\n### 📊 Evaluation\n"
+                else:
 
-                full_response += f"""
-- Retrieved Chunks: {evaluation_result['Retrieved Chunks']}
-- Context Characters: {evaluation_result['Context Characters']}
-"""
+                    final_answer = translate_answer(
 
-                # Display assistant message
+                        answer,
+
+                        user_language
+                    )
+
+
+                # ================= SOURCES =================
+
+                source_text = "\n\n📄 Sources:\n"
+
+
+                for doc in source_docs:
+
+                    source = doc.metadata.get(
+
+                        "source",
+
+                        "Unknown"
+                    )
+
+                    page = doc.metadata.get(
+
+                        "page",
+
+                        "Unknown"
+                    )
+
+                    source_text += (
+
+                        f"\n📌 {source}"
+                        f" — Page {page}"
+                    )
+
+
+                # ================= FINAL RESPONSE =================
+
+                final_response = (
+
+                    final_answer
+                    +
+                    source_text
+                )
+
+
+                # ================= SHOW ANSWER =================
+
                 with st.chat_message("assistant"):
 
-                    st.markdown(full_response)
+                    st.write(final_response)
 
-                # Save assistant response
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": full_response
-                    }
+
+                # ================= SAVE CHAT HISTORY =================
+
+                st.session_state.chat_history.append({
+
+                    "question": user_question,
+
+                    "answer": final_response
+
+                })
+
+
+            except Exception as e:
+
+                st.error(
+                    f"Error generating answer: {e}"
+                )
+
+
+    # ================= RAGAS EVALUATION =================
+
+    st.divider()
+
+    st.subheader(
+        "📊 RAGAS Evaluation"
+    )
+
+    st.write(
+        "Evaluate chatbot quality using RAGAS metrics."
+    )
+
+
+    if st.button(
+        "🚀 Run RAGAS Evaluation"
+    ):
+
+        with st.spinner(
+            "Running RAGAS Evaluation..."
+        ):
+
+            try:
+
+                ragas_df, scores = (
+
+                    run_ragas_evaluation(
+                        retriever
+                    )
+                )
+
+                st.success(
+                    "✅ RAGAS Evaluation Completed"
+                )
+
+
+                # ================= DETAILED RESULTS =================
+
+                st.subheader(
+                    "📄 Detailed Results"
+                )
+
+                st.dataframe(
+                    ragas_df
+                )
+
+
+                # ================= AVERAGE SCORES =================
+
+                st.subheader(
+                    "📈 Average Scores"
+                )
+
+                st.write(
+
+                    f"Faithfulness: "
+                    f"{scores['Faithfulness']}"
+                )
+
+                st.write(
+
+                    f"Answer Relevancy: "
+                    f"{scores['Answer Relevancy']}"
+                )
+
+                st.write(
+
+                    f"Context Precision: "
+                    f"{scores['Context Precision']}"
+                )
+
+                st.write(
+
+                    f"Context Recall: "
+                    f"{scores['Context Recall']}"
                 )
 
             except Exception as e:
 
-                st.error(f"Error generating answer: {e}")
+                st.error(
+                    f"RAGAS Error: {e}"
+                )
+
 
 else:
 
-    st.info("📂 Upload PDF documents to start chatting.")
+    st.info(
+        "📂 Please upload PDF documents to begin."
+    )
