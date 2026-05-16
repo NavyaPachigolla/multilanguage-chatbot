@@ -20,21 +20,34 @@ from utils.translator import (
 from utils.ragas_eval import evaluate_rag
 
 
-# Page configuration
+# Page config
 st.set_page_config(
-    page_title="Multilingual AI Chatbot",
+    page_title="Advanced Multilingual AI Chatbot",
     layout="wide"
 )
 
 # Title
-st.title("📚 Multilingual Multi-Document AI Chatbot")
+st.title("🤖 Advanced Multilingual RAG Chatbot")
 
-st.info(
-    "Supports English, Telugu, Hindi, Tamil and other Indian languages."
+st.markdown(
+    """
+Supports:
+- English
+- Telugu
+- Hindi
+- Tamil
+- Other Indian Languages
+"""
 )
 
+# Initialize chat history
+if "messages" not in st.session_state:
+
+    st.session_state.messages = []
+
+
 # Sidebar
-st.sidebar.title("Upload PDF Documents")
+st.sidebar.title("📂 Upload Documents")
 
 uploaded_files = st.sidebar.file_uploader(
     "Upload PDF Files",
@@ -42,36 +55,40 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
+# Clear chat button
+if st.sidebar.button("🗑️ Clear Chat"):
 
-# Process uploaded PDFs
+    st.session_state.messages = []
+
+    st.rerun()
+
+
+# Process PDFs
 if uploaded_files:
 
     with st.spinner("Processing PDFs..."):
 
         try:
 
-            # Load PDFs
             documents = load_pdfs(uploaded_files)
 
             if not documents:
-                st.error("No text could be extracted from PDFs.")
+                st.error("No text extracted from PDFs.")
                 st.stop()
 
-            # Split documents into chunks
             chunks = split_documents(documents)
 
             if not chunks:
-                st.error("No chunks generated from documents.")
+                st.error("No chunks generated.")
                 st.stop()
 
-            # Create vectorstore
             create_vectorstore(chunks)
 
             st.success("Documents processed successfully!")
 
-            st.write(f"Total Pages: {len(documents)}")
+            st.write(f"📄 Pages Loaded: {len(documents)}")
 
-            st.write(f"Total Chunks: {len(chunks)}")
+            st.write(f"🧩 Chunks Created: {len(chunks)}")
 
         except Exception as e:
 
@@ -79,13 +96,31 @@ if uploaded_files:
 
             st.stop()
 
-    # User Question
-    question = st.text_input(
-        "Ask your question"
+    # Display old chat messages
+    for message in st.session_state.messages:
+
+        with st.chat_message(message["role"]):
+
+            st.markdown(message["content"])
+
+    # Chat input
+    question = st.chat_input(
+        "Ask a question from uploaded documents..."
     )
 
-    # Generate answer
+    # If user asks question
     if question:
+
+        # Show user message
+        st.chat_message("user").markdown(question)
+
+        # Save user message
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": question
+            }
+        )
 
         with st.spinner("Generating answer..."):
 
@@ -94,10 +129,10 @@ if uploaded_files:
                 # Detect language
                 user_language = detect_language(question)
 
-                # Translate question to English
+                # Translate to English
                 english_question = translate_to_english(question)
 
-                # Generate answer from RAG
+                # Generate answer
                 answer, source_docs = generate_answer(
                     english_question
                 )
@@ -108,32 +143,44 @@ if uploaded_files:
                     user_language
                 )
 
-                # Format citations
+                # Format sources
                 sources = format_sources(source_docs)
 
-                # RAGAS Evaluation
+                # RAG evaluation
                 evaluation_result = evaluate_rag(
                     english_question,
                     answer,
                     source_docs
                 )
 
-                # Display Answer
-                st.subheader("Answer")
+                # Create final response
+                full_response = final_answer
 
-                st.write(final_answer)
-
-                # Display Sources
-                st.subheader("Sources")
+                full_response += "\n\n### 📚 Sources\n"
 
                 for source in sources:
 
-                    st.write(f"- {source}")
+                    full_response += f"- {source}\n"
 
-                # Display RAGAS Scores
-                st.subheader("RAGAS Evaluation Scores")
+                full_response += "\n### 📊 Evaluation\n"
 
-                st.write(evaluation_result)
+                full_response += f"""
+- Retrieved Chunks: {evaluation_result['Retrieved Chunks']}
+- Context Characters: {evaluation_result['Context Characters']}
+"""
+
+                # Display assistant message
+                with st.chat_message("assistant"):
+
+                    st.markdown(full_response)
+
+                # Save assistant response
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": full_response
+                    }
+                )
 
             except Exception as e:
 
@@ -141,4 +188,4 @@ if uploaded_files:
 
 else:
 
-    st.info("Please upload PDF documents to begin.")
+    st.info("📂 Upload PDF documents to start chatting.")
