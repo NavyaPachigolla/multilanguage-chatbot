@@ -4,7 +4,8 @@ from utils.pdf_loader import load_pdfs
 
 from utils.embeddings import (
     split_documents,
-    create_vectorstore
+    create_vectorstore,
+    load_vectorstore
 )
 
 from utils.rag_chain import generate_answer
@@ -92,7 +93,7 @@ if uploaded_files and st.session_state.retriever is None:
 
         try:
 
-            # LOAD PDFS
+            # LOAD PDFs
 
             documents = load_pdfs(
                 uploaded_files
@@ -122,14 +123,22 @@ if uploaded_files and st.session_state.retriever is None:
                 st.stop()
 
 
-            # VECTORSTORE
+            # ================= VECTORSTORE =================
 
-            vectorstore = create_vectorstore(
-                chunks
-            )
+            existing_vectorstore = load_vectorstore()
+
+            if existing_vectorstore is not None:
+
+                vectorstore = existing_vectorstore
+
+            else:
+
+                vectorstore = create_vectorstore(
+                    chunks
+                )
 
 
-            # RETRIEVER
+            # ================= RETRIEVER =================
 
             retriever = vectorstore.as_retriever(
 
@@ -211,13 +220,29 @@ if st.session_state.retriever is not None:
                 )
 
 
+                # ================= CREATE CHAT MEMORY =================
+
+                history_text = ""
+
+                for chat in st.session_state.chat_history:
+
+                    history_text += (
+
+                        f"User: {chat['question']}\n"
+
+                        f"Assistant: {chat['answer']}\n\n"
+                    )
+
+
                 # ================= GENERATE ANSWER =================
 
                 answer, source_docs = generate_answer(
 
                     english_question,
 
-                    retriever
+                    retriever,
+
+                    history_text
                 )
 
 
@@ -355,25 +380,25 @@ if st.session_state.retriever is not None:
                 st.write(
 
                     f"Faithfulness: "
-                    f"{scores['Faithfulness']}"
+                    f"{scores['Faithfulness']}%"
                 )
 
                 st.write(
 
                     f"Answer Relevancy: "
-                    f"{scores['Answer Relevancy']}"
+                    f"{scores['Answer Relevancy']}%"
                 )
 
                 st.write(
 
                     f"Context Precision: "
-                    f"{scores['Context Precision']}"
+                    f"{scores['Context Precision']}%"
                 )
 
                 st.write(
 
                     f"Context Recall: "
-                    f"{scores['Context Recall']}"
+                    f"{scores['Context Recall']}%"
                 )
 
             except Exception as e:

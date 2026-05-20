@@ -1,78 +1,89 @@
 import os
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import (
+    RecursiveCharacterTextSplitter
+)
 
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import (
+    HuggingFaceEmbeddings
+)
 
-from langchain_community.vectorstores import FAISS
-
-
-# Load multilingual embedding model
-def get_embedding_model():
-
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
-
-    return embeddings
+from langchain_community.vectorstores import (
+    FAISS
+)
 
 
-# Split documents into chunks
+# ===============================
+# SPLIT DOCUMENTS
+# ===============================
+
 def split_documents(documents):
 
-    if not documents:
-        return []
+    splitter = RecursiveCharacterTextSplitter(
 
-    text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
+
         chunk_overlap=200
     )
 
-    chunks = text_splitter.split_documents(documents)
+    chunks = splitter.split_documents(
+        documents
+    )
 
-    # Remove empty chunks
-    cleaned_chunks = []
-
-    for chunk in chunks:
-
-        if chunk.page_content.strip():
-            cleaned_chunks.append(chunk)
-
-    return cleaned_chunks
+    return chunks
 
 
-# Create FAISS vector store
+# ===============================
+# CREATE VECTORSTORE
+# ===============================
+
 def create_vectorstore(chunks):
 
-    if not chunks:
-        raise ValueError("No valid chunks found from uploaded PDFs.")
+    embedding_model = HuggingFaceEmbeddings(
 
-    embeddings = get_embedding_model()
-
-    # Create vector DB
-    vectorstore = FAISS.from_documents(
-        chunks,
-        embeddings
+        model_name=
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
 
-    # Create folder if missing
-    os.makedirs("vectorstore", exist_ok=True)
+    vectorstore = FAISS.from_documents(
 
-    # Save locally
-    vectorstore.save_local("vectorstore")
+        documents=chunks,
+
+        embedding=embedding_model
+    )
+
+    # SAVE LOCALLY
+
+    vectorstore.save_local(
+        "vectorstore"
+    )
 
     return vectorstore
 
 
-# Load saved vectorstore
+# ===============================
+# LOAD VECTORSTORE
+# ===============================
+
 def load_vectorstore():
 
-    embeddings = get_embedding_model()
+    embedding_model = HuggingFaceEmbeddings(
 
-    vectorstore = FAISS.load_local(
-        "vectorstore",
-        embeddings,
-        allow_dangerous_deserialization=True
+        model_name=
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
 
-    return vectorstore
+    if os.path.exists("vectorstore"):
+
+        vectorstore = FAISS.load_local(
+
+            "vectorstore",
+
+            embedding_model,
+
+            allow_dangerous_deserialization=True
+        )
+
+        return vectorstore
+
+    return None

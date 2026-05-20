@@ -1,18 +1,18 @@
-from groq import Groq
+from langchain_groq import ChatGroq
 
-import os
+from langchain_core.prompts import PromptTemplate
 
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
 
+# ===============================
+# SYSTEM PROMPT
+# ===============================
 
-SYSTEM_PROMPT = """
+PROMPT_TEMPLATE = """
+
 You are an intelligent multilingual AI assistant.
 
 Answer ONLY from the provided context.
@@ -24,53 +24,94 @@ Rules:
 2. If information is unavailable, say:
 'The uploaded documents do not contain this information.'
 
-3. Always include source citations.
+3. Always include concise answers.
 
-4. Mention document name and page number.
+4. Support multilingual users.
 
-5. Keep answers concise and accurate.
-
-6. Support multilingual users.
-"""
+5. Use previous conversation if relevant.
 
 
-def generate_answer(question, retriever):
+Conversation History:
+{chat_history}
 
-    # NEW LANGCHAIN METHOD
-    docs = retriever.invoke(question)
-
-    context = ""
-
-    for doc in docs:
-        context += doc.page_content + "\n"
-
-
-    prompt = f"""
-{SYSTEM_PROMPT}
 
 Context:
 {context}
 
+
 Question:
 {question}
+
+
+Answer:
+
 """
 
 
-    response = client.chat.completions.create(
+# ===============================
+# GENERATE ANSWER
+# ===============================
+
+def generate_answer(
+
+    question,
+
+    retriever,
+
+    chat_history=""
+):
+
+    # RETRIEVE DOCUMENTS
+
+    docs = retriever.invoke(
+        question
+    )
+    # COMBINE CONTEXT
+
+    context = "\n\n".join([
+
+        doc.page_content
+
+        for doc in docs
+    ])
+
+    # PROMPT
+
+    prompt = PromptTemplate(
+
+        template=PROMPT_TEMPLATE,
+
+        input_variables=[
+            "context",
+            "question",
+            "chat_history"
+        ]
+    )
+
+    final_prompt = prompt.format(
+
+        context=context,
+
+        question=question,
+
+        chat_history=chat_history
+    )
+
+    # LLM
+
+    llm = ChatGroq(
 
         model="llama-3.3-70b-versatile",
-
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
 
         temperature=0
     )
 
+    # GENERATE RESPONSE
 
-    answer = response.choices[0].message.content
+    response = llm.invoke(
+        final_prompt
+    )
+
+    answer = response.content
 
     return answer, docs
