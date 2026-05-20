@@ -2,7 +2,7 @@ test_questions = [
 
     {
         "question": "What is multithreading?",
-        "ground_truth": "Multithreading is a process where multiple threads execute concurrently within a single process."
+        "ground_truth": "Multithreadings is a process where multiple threads execute concurrently within a single process."
     },
 
     {
