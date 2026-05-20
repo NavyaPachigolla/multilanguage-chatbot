@@ -12,7 +12,7 @@ test_questions = [
 
     {
         "question": "What is a thread?",
-        "ground_truth": "A thread is the smallest unit of CPU execution within a process."
+        "ground_truth": "A thread is the smallest unit of Central Processing Unit(CPU) execution within a process."
     },
 
     {
