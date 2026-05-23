@@ -12,7 +12,24 @@ from utils.translator import (
 
 from utils.rewriter import rewrite_query
 
+from db import get_connection
+def save_chat(user_msg, bot_msg, language):
+    conn = get_connection()
+    cursor = conn.cursor()
 
+    query = """
+    INSERT INTO chat_history
+    (user_message, bot_response, language)
+    VALUES (%s, %s, %s)
+    """
+
+    values = (user_msg, bot_msg, language)
+
+    cursor.execute(query, values)
+    conn.commit()
+
+    cursor.close()
+    conn.close()
 # ================= PAGE CONFIG =================
 st.set_page_config(
     page_title="Multilingual Multi-Document AI Chatbot",
@@ -129,6 +146,7 @@ if st.session_state.retriever is not None:
                     )
 
                 final_output = final_answer + sources
+                save_chat(user_question, final_output, user_language)
 
                 # show answer
                 with st.chat_message("assistant"):
