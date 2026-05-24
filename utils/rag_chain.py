@@ -1,13 +1,7 @@
-from groq import Groq
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
+from utils.llm_factory import GroqLLM
 
 # ================= STRICT RAG PROMPT =================
+
 SYSTEM_PROMPT = """
 You are a STRICT RAG-based AI assistant.
 
@@ -21,38 +15,58 @@ RULES:
 """
 
 
+# ================= LLM INSTANCE =================
+
+llm = GroqLLM()
+
+
 # ================= MAIN FUNCTION =================
+
 def generate_answer(question, retriever):
 
     try:
+
         # ================= RETRIEVE =================
+
         docs = retriever.invoke(question)
 
         if not docs:
             return "The uploaded documents do not contain this information.", []
 
+
         # ================= REMOVE DUPLICATES =================
+
         seen = set()
         unique_docs = []
 
         for d in docs:
+
             key = (
                 d.metadata.get("source", "Unknown"),
                 d.metadata.get("page", "Unknown")
             )
+
             if key not in seen:
                 seen.add(key)
                 unique_docs.append(d)
 
         docs = unique_docs
 
+
         # ================= BUILD CONTEXT =================
+
         context = "\n\n".join(
-            f"[Source: {d.metadata.get('source','Unknown')} | Page: {d.metadata.get('page','?')}]\n{d.page_content}"
+
+            f"[Source: {d.metadata.get('source','Unknown')} | "
+            f"Page: {d.metadata.get('page','?')}]\n"
+            f"{d.page_content}"
+
             for d in docs
         )
 
+
         # ================= FINAL PROMPT =================
+
         final_prompt = f"""
 {SYSTEM_PROMPT}
 
@@ -65,25 +79,35 @@ QUESTION:
 ANSWER:
 """
 
-        # ================= GROQ CALL =================
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": final_prompt
-                }
-            ],
-            temperature=0
-        )
 
-        answer = response.choices[0].message.content
+        # ================= LLM MESSAGES =================
+
+        messages = [
+
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+
+            {
+                "role": "user",
+                "content": final_prompt
+            }
+        ]
+
+
+        # ================= GENERATE =================
+
+        answer = llm.generate(messages)
 
         return answer, docs
 
+
     except Exception as e:
-        return "The uploaded documents do not contain this information.", []
+
+        print("RAG Error:", e)
+
+        return (
+            "The uploaded documents do not contain this information.",
+            []
+        )
