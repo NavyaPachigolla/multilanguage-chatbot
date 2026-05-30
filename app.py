@@ -39,7 +39,7 @@ st.title(
 
 st.markdown("""
 
-### 🌍 Supported Languages
+### 🌍 Supported Language
 
 - English
 - Telugu
