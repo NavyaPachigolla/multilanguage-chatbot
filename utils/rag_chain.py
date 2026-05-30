@@ -1,117 +1,113 @@
-from langchain_groq import ChatGroq
+from utils.llm_factory import GroqLLM
 
-from langchain_core.prompts import PromptTemplate
+# ================= STRICT RAG PROMPT =================
 
-from dotenv import load_dotenv
+SYSTEM_PROMPT = """
+You are a STRICT RAG-based AI assistant.
 
-load_dotenv()
-
-
-# ===============================
-# SYSTEM PROMPT
-# ===============================
-
-PROMPT_TEMPLATE = """
-
-You are an intelligent multilingual AI assistant.
-
-Answer ONLY from the provided context.
-
-Rules:
-
-1. Do not hallucinate.
-
-2. If information is unavailable, say:
-'The uploaded documents do not contain this information.'
-
-3. Always include concise answers.
-
-4. Support multilingual users.
-
-5. Use previous conversation if relevant.
-
-
-Conversation History:
-{chat_history}
-
-
-Context:
-{context}
-
-
-Question:
-{question}
-
-
-Answer:
-
+RULES:
+1. Answer ONLY using the provided context.
+2. If answer is not in context, say:
+   "The uploaded documents do not contain this information."
+3. Do NOT use outside knowledge.
+4. Be concise and accurate.
+5. Always include source if available (file name + page).
 """
 
 
-# ===============================
-# GENERATE ANSWER
-# ===============================
+# ================= LLM INSTANCE =================
 
-def generate_answer(
+llm = GroqLLM()
 
-    question,
 
-    retriever,
+# ================= MAIN FUNCTION =================
 
-    chat_history=""
-):
+def generate_answer(question, retriever):
 
-    # RETRIEVE DOCUMENTS
+    try:
 
-    docs = retriever.invoke(
-        question
-    )
-    # COMBINE CONTEXT
+        # ================= RETRIEVE =================
 
-    context = "\n\n".join([
+        docs = retriever.invoke(question)
 
-        doc.page_content
+        if not docs:
+            return "The uploaded documents do not contain this information.", []
 
-        for doc in docs
-    ])
 
-    # PROMPT
+        # ================= REMOVE DUPLICATES =================
 
-    prompt = PromptTemplate(
+        seen = set()
+        unique_docs = []
 
-        template=PROMPT_TEMPLATE,
+        for d in docs:
 
-        input_variables=[
-            "context",
-            "question",
-            "chat_history"
+            key = (
+                d.metadata.get("source", "Unknown"),
+                d.metadata.get("page", "Unknown")
+            )
+
+            if key not in seen:
+                seen.add(key)
+                unique_docs.append(d)
+
+        docs = unique_docs
+
+
+        # ================= BUILD CONTEXT =================
+
+        context = "\n\n".join(
+
+            f"[Source: {d.metadata.get('source','Unknown')} | "
+            f"Page: {d.metadata.get('page','?')}]\n"
+            f"{d.page_content}"
+
+            for d in docs
+        )
+
+
+        # ================= FINAL PROMPT =================
+
+        final_prompt = f"""
+{SYSTEM_PROMPT}
+
+CONTEXT:
+{context}
+
+QUESTION:
+{question}
+
+ANSWER:
+"""
+
+
+        # ================= LLM MESSAGES =================
+
+        messages = [
+
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+
+            {
+                "role": "user",
+                "content": final_prompt
+            }
         ]
-    )
 
-    final_prompt = prompt.format(
 
-        context=context,
+        # ================= GENERATE =================
 
-        question=question,
+        answer = llm.generate(messages)
 
-        chat_history=chat_history
-    )
+        return answer, docs
 
-    # LLM
 
-    llm = ChatGroq(
+    except Exception as e:
 
-        model="llama-3.3-70b-versatile",
+        print("RAG Error:", e)
 
-        temperature=0
-    )
-
-    # GENERATE RESPONSE
-
-    response = llm.invoke(
-        final_prompt
-    )
-
-    answer = response.content
-
-    return answer, docs
+        return (
+            "The uploaded documents do not contain this information.",
+            []
+        )
