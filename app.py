@@ -82,6 +82,8 @@ if st.sidebar.button("🗑 Clear Chat"):
 
     st.session_state.chat_history = []
 
+    st.session_state.retriever = None
+
     st.rerun()
 
 
@@ -93,7 +95,7 @@ if uploaded_files and st.session_state.retriever is None:
 
         try:
 
-            # LOAD PDFs
+            # ================= LOAD PDFS =================
 
             documents = load_pdfs(
                 uploaded_files
@@ -108,7 +110,7 @@ if uploaded_files and st.session_state.retriever is None:
                 st.stop()
 
 
-            # SPLIT DOCUMENTS
+            # ================= SPLIT DOCUMENTS =================
 
             chunks = split_documents(
                 documents
@@ -123,13 +125,23 @@ if uploaded_files and st.session_state.retriever is None:
                 st.stop()
 
 
-            # ================= VECTORSTORE =================
+            # ================= LOAD EXISTING VECTORSTORE =================
 
             existing_vectorstore = load_vectorstore()
+
+
+            # ================= USE EXISTING VECTORSTORE =================
 
             if existing_vectorstore is not None:
 
                 vectorstore = existing_vectorstore
+
+                st.success(
+                    "✅ Existing Vector Database Loaded!"
+                )
+
+
+            # ================= CREATE NEW VECTORSTORE =================
 
             else:
 
@@ -137,8 +149,12 @@ if uploaded_files and st.session_state.retriever is None:
                     chunks
                 )
 
+                st.success(
+                    "✅ New Vector Database Created!"
+                )
 
-            # ================= RETRIEVER =================
+
+            # ================= CREATE RETRIEVER =================
 
             retriever = vectorstore.as_retriever(
 
@@ -193,7 +209,7 @@ if st.session_state.retriever is not None:
 
     if user_question:
 
-        # SHOW USER QUESTION
+        # ================= SHOW USER QUESTION =================
 
         with st.chat_message("user"):
 
@@ -204,14 +220,14 @@ if st.session_state.retriever is not None:
 
             try:
 
-                # ================= LANGUAGE DETECTION =================
+                # ================= DETECT LANGUAGE =================
 
                 user_language = detect_language(
                     user_question
                 )
 
 
-                # ================= TRANSLATE TO ENGLISH =================
+                # ================= TRANSLATE QUESTION =================
 
                 english_question = (
                     translate_to_english(
@@ -220,33 +236,17 @@ if st.session_state.retriever is not None:
                 )
 
 
-                # ================= CREATE CHAT MEMORY =================
-
-                history_text = ""
-
-                for chat in st.session_state.chat_history:
-
-                    history_text += (
-
-                        f"User: {chat['question']}\n"
-
-                        f"Assistant: {chat['answer']}\n\n"
-                    )
-
-
                 # ================= GENERATE ANSWER =================
 
                 answer, source_docs = generate_answer(
 
                     english_question,
 
-                    retriever,
-
-                    history_text
+                    retriever
                 )
 
 
-                # ================= TRANSLATE BACK =================
+                # ================= TRANSLATE ANSWER =================
 
                 if user_language == "en":
 
@@ -307,7 +307,7 @@ if st.session_state.retriever is not None:
                     st.write(final_response)
 
 
-                # ================= SAVE CHAT HISTORY =================
+                # ================= SAVE CHAT =================
 
                 st.session_state.chat_history.append({
 
@@ -325,7 +325,7 @@ if st.session_state.retriever is not None:
                 )
 
 
-    # ================= RAGAS EVALUATION =================
+    # ================= RAGAS SECTION =================
 
     st.divider()
 

@@ -1,78 +1,135 @@
-import os
-
 from langchain_core.documents import Document
 
-from langchain_community.document_loaders import PyPDFLoader
+from PyPDF2 import PdfReader
 
 from pdf2image import convert_from_path
 
 import pytesseract
 
+import tempfile
 
-# Set tesseract path (Windows)
+import os
+
+
+# TESSERACT PATH
+
 pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    r"C:\Users\SAMA\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 )
+
+
+def extract_text_normal(pdf_path):
+
+    documents = []
+
+    reader = PdfReader(pdf_path)
+
+    for page_num, page in enumerate(reader.pages):
+
+        text = page.extract_text()
+
+        if text and text.strip():
+
+
+            documents.append(
+
+                Document(
+
+                    page_content=text,
+
+                    metadata={
+
+                        "source": os.path.basename(pdf_path),
+
+                        "page": page_num + 1
+                    }
+                )
+            )
+
+    return documents
+
+
+def extract_text_ocr(pdf_path):
+
+    documents = []
+
+    images = convert_from_path(pdf_path)
+
+    for page_num, image in enumerate(images):
+
+        text = pytesseract.image_to_string(
+
+            image,
+
+            lang="eng"
+        )
+
+        if text.strip():
+
+            documents.append(
+
+                Document(
+
+                    page_content=text,
+
+                    metadata={
+
+                        "source": os.path.basename(pdf_path),
+
+                        "page": page_num + 1
+                    }
+                )
+            )
+
+    return documents
 
 
 def load_pdfs(uploaded_files):
 
-    documents = []
+    all_documents = []
 
-    os.makedirs("uploaded_docs", exist_ok=True)
+    for uploaded_file in uploaded_files:
 
-    for file in uploaded_files:
+        with tempfile.NamedTemporaryFile(
 
-        try:
+            delete=False,
 
-            temp_path = os.path.join(
-                "uploaded_docs",
-                file.name
+            suffix=".pdf"
+
+        ) as temp_file:
+
+            temp_file.write(
+
+                uploaded_file.read()
             )
 
-            with open(temp_path, "wb") as f:
-                f.write(file.getbuffer())
+            temp_pdf_path = temp_file.name
 
-            # Try normal PDF extraction first
-            loader = PyPDFLoader(temp_path)
 
-            pages = loader.load()
+        # NORMAL PDF EXTRACTION
 
-            valid_text = False
+        documents = extract_text_normal(
+            temp_pdf_path
+        )
 
-            for page in pages:
 
-                if page.page_content.strip():
+        # OCR FALLBACK
 
-                    valid_text = True
+        if len(documents) == 0:
 
-                    page.metadata["source"] = file.name
+            print(
+                "Using OCR for scanned PDF..."
+            )
 
-                    documents.append(page)
+            documents = extract_text_ocr(
+                temp_pdf_path
+            )
 
-            # If no text found → OCR
-            if not valid_text:
 
-                images = convert_from_path(temp_path)
+        all_documents.extend(
+            documents
+        )
 
-                for i, image in enumerate(images):
+        os.remove(temp_pdf_path)
 
-                    text = pytesseract.image_to_string(image)
-
-                    if text.strip():
-
-                        doc = Document(
-                            page_content=text,
-                            metadata={
-                                "source": file.name,
-                                "page": i + 1
-                            }
-                        )
-
-                        documents.append(doc)
-
-        except Exception as e:
-
-            print(f"Error processing {file.name}: {e}")
-
-    return documents
+    return all_documents
