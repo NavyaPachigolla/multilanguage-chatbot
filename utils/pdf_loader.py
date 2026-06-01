@@ -51,35 +51,47 @@ def extract_text_normal(pdf_path):
 
 def extract_text_ocr(pdf_path):
 
+    print("OCR Started...")
+
     documents = []
 
-    images = convert_from_path(pdf_path)
+    images = convert_from_path(
+        pdf_path,
+        dpi=300,
+        thread_count=4
+    )
+
+    print(f"Total Pages: {len(images)}")
 
     for page_num, image in enumerate(images):
 
+        print(f"\nProcessing Page {page_num + 1}")
+        custom_config = r'--oem 3 --psm 6'
         text = pytesseract.image_to_string(
-
             image,
-
-            lang="eng"
+            lang="eng",
+            config=custom_config
         )
+
+        print("\n========== OCR TEXT ==========")
+        print(text[:1000])
+        print("==============================")
+
+        print(f"Completed Page {page_num + 1}")
 
         if text.strip():
 
             documents.append(
-
                 Document(
-
                     page_content=text,
-
                     metadata={
-
                         "source": os.path.basename(pdf_path),
-
                         "page": page_num + 1
                     }
                 )
             )
+
+    print("OCR Finished")
 
     return documents
 
