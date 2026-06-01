@@ -13,7 +13,7 @@ An AI-powered multilingual chatbot that answers questions from multiple PDF docu
 - 📚 Retrieval-Augmented Generation (RAG)
 - ⚡ FAISS Semantic Search
 - 🤖 Groq LLM Integration
-- 📌 Source-Aware Responses
+- 📌 Source-Aware Responses with Page References
 - 🗄️ MySQL Chat History Storage
 - 💬 Interactive Streamlit Interface
 
@@ -23,19 +23,19 @@ An AI-powered multilingual chatbot that answers questions from multiple PDF docu
 
 ### Home Page
 
-![Home Page](images/app_home.png)
+![Home Page](images/homepage.png)
 
 ### PDF Upload & Processing
 
-![PDF Upload](images/pdf_upload.png)
+![PDF Upload](images/upload.png)
 
 ### Chat Response with Sources
 
-![Chat Response](images/chat_response.png)
+![Chat Response](images/answers.png)
 
 ### MySQL Chat History Storage
 
-![Database Storage](images/database_storage.png)
+![Database Storage](images/mysql.png)
 
 ---
 
@@ -43,19 +43,19 @@ An AI-powered multilingual chatbot that answers questions from multiple PDF docu
 
 ### Use Case Diagram
 
-![Use Case Diagram](images/use_case_diagram.png)
+![Use Case Diagram](images/usecase%20diagram.png)
 
 ### Class Diagram
 
-![Class Diagram](images/class_diagram.png)
+![Class Diagram](images/class%20diagram.png)
 
 ### Sequence Diagram
 
-![Sequence Diagram](images/sequence_diagram.png)
+![Sequence Diagram](images/sequence%20diagram.png)
 
 ### Component Diagram
 
-![Component Diagram](images/component_diagram.png)
+![Component Diagram](images/component%20diagram.png)
 
 ---
 
@@ -66,7 +66,7 @@ User Query
     ↓
 Language Detection
     ↓
-Translation to English
+Translate to English
     ↓
 Query Rewriting
     ↓
@@ -78,25 +78,64 @@ Response Translation
     ↓
 Source Citation
     ↓
-MySQL Chat Storage
+Store Chat History in MySQL
 ```
 
 ---
 
-## 🏗️ Tech Stack
+## 🏗️ System Architecture
+
+```text
+PDF Documents
+      │
+      ▼
+PDF Loader
+      │
+      ▼
+OCR Extraction
+      │
+      ▼
+Document Chunking
+      │
+      ▼
+Embedding Generation
+      │
+      ▼
+FAISS Vector Store
+      │
+      ▼
+Retriever
+      │
+      ▼
+RAG Pipeline
+      │
+      ▼
+Groq LLM
+      │
+      ▼
+Translated Response
+      │
+      ▼
+MySQL Storage
+```
+
+---
+
+## 🛠️ Tech Stack
 
 | Category | Technology |
 |-----------|-----------|
 | Frontend | Streamlit |
 | Backend | Python |
-| LLM | Groq |
 | Framework | LangChain |
+| LLM | Groq |
 | Embeddings | HuggingFace |
 | Vector Database | FAISS |
 | OCR | Tesseract OCR |
 | Database | MySQL |
 | PDF Processing | PyMuPDF |
 | Translation | Google Translator |
+| Language Detection | LangDetect |
 
 ---
 
@@ -117,6 +156,14 @@ multilingual-chatbot/
 │   └── rewriter.py
 │
 ├── images/
+│   ├── homepage.png
+│   ├── upload.png
+│   ├── answers.png
+│   ├── mysql.png
+│   ├── usecase diagram.png
+│   ├── class diagram.png
+│   ├── sequence diagram.png
+│   └── component diagram.png
 │
 └── README.md
 ```
@@ -125,12 +172,13 @@ multilingual-chatbot/
 
 ## 🎯 Challenges Solved
 
-- Extracting text from scanned PDFs using OCR
-- Handling multilingual user queries
-- Improving retrieval through query rewriting
-- Generating source-aware responses
-- Storing conversation history using MySQL
-- Retrieving information across multiple documents
+- Extracted text from scanned PDFs using OCR
+- Supported multilingual user interactions
+- Improved retrieval quality through query rewriting
+- Enabled semantic search using FAISS
+- Generated source-aware answers with citations
+- Stored conversation history using MySQL
+- Retrieved information across multiple PDF documents
 
 ---
 
@@ -157,8 +205,8 @@ streamlit run app.py
 - User Authentication
 - Session-Based Chat History
 - Feedback System
-- Voice-Based Queries
 - Conversation Memory
+- Voice-Based Queries
 - Cloud Deployment
 
 ---
@@ -174,6 +222,6 @@ streamlit run app.py
 
 If you found this project useful:
 
-- Star the repository
-- Fork the repository
-- Contribute to the project
+- ⭐ Star the repository
+- 🍴 Fork the repository
+- 🤝 Contribute to the project
