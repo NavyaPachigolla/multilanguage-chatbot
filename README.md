@@ -1,6 +1,6 @@
 # 📚 Multilingual Multi-Document AI Chatbot
 
-An AI-powered multilingual chatbot that answers questions from multiple PDF documents using OCR, Retrieval-Augmented Generation (RAG), FAISS vector search, Groq LLM, and MySQL-powered chat history storage.
+An AI-powered multilingual chatbot that enables users to interact with multiple PDF documents through natural language queries. The system leverages OCR, Retrieval-Augmented Generation (RAG), FAISS vector search, Groq LLM, and MySQL to deliver accurate, source-aware responses across multiple languages.
 
 ---
 
@@ -13,7 +13,7 @@ An AI-powered multilingual chatbot that answers questions from multiple PDF docu
 - 📚 Retrieval-Augmented Generation (RAG)
 - ⚡ FAISS Semantic Search
 - 🤖 Groq LLM Integration
-- 📌 Source-Aware Responses with Page References
+- 📌 Source-Aware Responses with Citations
 - 🗄️ MySQL Chat History Storage
 - 💬 Interactive Streamlit Interface
 
@@ -43,19 +43,19 @@ An AI-powered multilingual chatbot that answers questions from multiple PDF docu
 
 ### Use Case Diagram
 
-![Use Case Diagram](images/usecase%20diagram.png)
+![Use Case Diagram](images/usecase_diagram.png)
 
 ### Class Diagram
 
-![Class Diagram](images/class%20diagram.png)
+![Class Diagram](images/class_diagram.png)
 
 ### Sequence Diagram
 
-![Sequence Diagram](images/sequence%20diagram.png)
+![Sequence Diagram](images/sequence_diagram.png)
 
 ### Component Diagram
 
-![Component Diagram](images/component%20diagram.png)
+![Component Diagram](images/component_diagram.png)
 
 ---
 
@@ -113,7 +113,10 @@ RAG Pipeline
 Groq LLM
       │
       ▼
-Translated Response
+Response Generation
+      │
+      ▼
+Translation Layer
       │
       ▼
 MySQL Storage
@@ -129,7 +132,7 @@ MySQL Storage
 | Backend | Python |
 | Framework | LangChain |
 | LLM | Groq |
-| Embeddings | HuggingFace |
+| Embeddings | HuggingFace Sentence Transformers |
 | Vector Database | FAISS |
 | OCR | Tesseract OCR |
 | Database | MySQL |
@@ -160,10 +163,10 @@ multilingual-chatbot/
 │   ├── upload.png
 │   ├── answers.png
 │   ├── mysql.png
-│   ├── usecase diagram.png
-│   ├── class diagram.png
-│   ├── sequence diagram.png
-│   └── component diagram.png
+│   ├── usecase_diagram.png
+│   ├── class_diagram.png
+│   ├── sequence_diagram.png
+│   └── component_diagram.png
 │
 └── README.md
 ```
@@ -172,29 +175,51 @@ multilingual-chatbot/
 
 ## 🎯 Challenges Solved
 
-- Extracted text from scanned PDFs using OCR
-- Supported multilingual user interactions
-- Improved retrieval quality through query rewriting
-- Enabled semantic search using FAISS
-- Generated source-aware answers with citations
-- Stored conversation history using MySQL
-- Retrieved information across multiple PDF documents
+- Extracting text from scanned PDFs using OCR
+- Supporting multilingual user interactions
+- Improving retrieval quality through query rewriting
+- Performing semantic search using FAISS embeddings
+- Generating source-aware responses
+- Maintaining persistent chat history using MySQL
+- Processing and querying multiple documents simultaneously
 
 ---
 
 ## ⚙️ Installation
 
+### Clone Repository
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/<username>/multilingual-chatbot.git
+```
 
+### Navigate to Project
+
+```bash
 cd multilingual-chatbot
+```
 
+### Create Virtual Environment
+
+```bash
 python -m venv venv
+```
 
+### Activate Environment
+
+```bash
 venv\Scripts\activate
+```
 
+### Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
+### Run Application
+
+```bash
 streamlit run app.py
 ```
 
@@ -204,10 +229,12 @@ streamlit run app.py
 
 - User Authentication
 - Session-Based Chat History
-- Feedback System
-- Conversation Memory
 - Voice-Based Queries
+- Conversation Memory
+- Feedback & Rating System
 - Cloud Deployment
+- Document Summarization
+- Hybrid Search (Keyword + Semantic)
 
 ---
 
@@ -225,3 +252,9 @@ If you found this project useful:
 - ⭐ Star the repository
 - 🍴 Fork the repository
 - 🤝 Contribute to the project
+
+---
+
+## 📜 License
+
+This project is intended for educational, research, and learning purposes.
