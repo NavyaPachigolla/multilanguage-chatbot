@@ -1,12 +1,3 @@
-from db import get_connection
+from utils.db_tool import get_student
 
-print("🚀 Testing DB...")
-
-conn = get_connection()
-
-if conn.is_connected():
-    print("✅ DB CONNECTED SUCCESSFULLY!")
-
-conn.close()
-
-print("🔒 CLOSED")
+print(get_student("Sukruti"))

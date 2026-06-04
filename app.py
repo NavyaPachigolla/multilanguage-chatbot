@@ -12,8 +12,17 @@ from utils.translator import (
 
 from utils.rewriter import rewrite_query
 
+from utils.router import route_query
+from utils.db_tool import get_student
+from utils.tavily_tool import web_search
+
 from db import get_connection
+
+
+# ================= DATABASE SAVE =================
+
 def save_chat(user_msg, bot_msg, language):
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -26,11 +35,15 @@ def save_chat(user_msg, bot_msg, language):
     values = (user_msg, bot_msg, language)
 
     cursor.execute(query, values)
+
     conn.commit()
 
     cursor.close()
     conn.close()
+
+
 # ================= PAGE CONFIG =================
+
 st.set_page_config(
     page_title="Multilingual Multi-Document AI Chatbot",
     layout="wide"
@@ -40,15 +53,23 @@ st.title("📚 Multilingual Multi-Document AI Chatbot")
 
 st.markdown("""
 ### 🌍 Supported Languages
+
 - English
 - Telugu
 - Hindi
 - Tamil
 - Other Indian Languages
+
+### 🤖 Supported Tools
+
+- PDF RAG Search
+- MySQL Database Search
+- Tavily Web Search
 """)
 
 
 # ================= SESSION STATE =================
+
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -57,6 +78,7 @@ if "retriever" not in st.session_state:
 
 
 # ================= SIDEBAR =================
+
 st.sidebar.header("📂 Upload PDFs")
 
 uploaded_files = st.sidebar.file_uploader(
@@ -71,6 +93,7 @@ if st.sidebar.button("🗑 Clear Chat"):
 
 
 # ================= PROCESS PDFs =================
+
 if uploaded_files and st.session_state.retriever is None:
 
     with st.spinner("Processing PDFs..."):
@@ -97,19 +120,24 @@ if uploaded_files and st.session_state.retriever is None:
 
 
 # ================= CHAT SECTION =================
+
 if st.session_state.retriever is not None:
 
     retriever = st.session_state.retriever
 
-    # show history
+    # Display history
     for chat in st.session_state.chat_history:
+
         with st.chat_message("user"):
             st.write(chat["question"])
+
         with st.chat_message("assistant"):
             st.write(chat["answer"])
 
-    # input box
-    user_question = st.chat_input("Ask questions from your documents...")
+    # Chat input
+    user_question = st.chat_input(
+        "Ask questions from documents, database or web..."
+    )
 
     if user_question:
 
@@ -119,48 +147,149 @@ if st.session_state.retriever is not None:
         with st.spinner("Thinking..."):
 
             try:
-                # 1. Detect language
-                user_language = detect_language(user_question)
 
-                # 2. Translate to English
-                english_question = translate_to_english(user_question)
+                # ================= LANGUAGE DETECTION =================
 
-                # 3. Rewrite query (IMPORTANT FOR RETRIEVAL)
-                rewritten_question = rewrite_query(english_question)
+                user_language = detect_language(
+                    user_question
+                )
 
-                # 4. Generate answer (RAG)
-                answer, docs = generate_answer(rewritten_question, retriever)
+                english_question = translate_to_english(
+                    user_question
+                )
 
-                # 5. Translate back
-                if user_language == "en":
-                    final_answer = answer
-                else:
-                    final_answer = translate_answer(answer, user_language)
+                rewritten_question = rewrite_query(
+                    english_question
+                )
 
-                # 6. Sources
-                sources = "\n\n📄 Sources:\n"
-                for d in docs:
-                    sources += (
-                        f"\n📌 {d.metadata.get('source','Unknown')} "
-                        f"- Page {d.metadata.get('page','?')}"
+                # ================= ROUTER =================
+
+                route = route_query(
+                    rewritten_question
+                )
+
+                # ================= DATABASE =================
+
+                if route == "database":
+
+                    q = rewritten_question.lower()
+
+                    student = None
+
+                    if "sukruti" in q:
+                        student = get_student("Sukruti")
+
+                    elif "navya" in q:
+                        student = get_student("Navya")
+
+                    elif "ravi" in q:
+                        student = get_student("Ravi")
+
+                    if student:
+
+                        answer = f"""
+Name: {student['name']}
+College: {student['college']}
+CGPA: {student['cgpa']}
+Eligible: {student['eligible']}
+"""
+
+                    else:
+
+                        answer = (
+                            "Student not found in database."
+                        )
+
+                    docs = []
+
+                # ================= WEB SEARCH =================
+
+                elif route == "web":
+
+                    result = web_search(
+                        rewritten_question
                     )
 
-                final_output = final_answer + sources
-                save_chat(user_question, final_output, user_language)
+                    if result.get("results"):
 
-                # show answer
+                        answer = result["results"][0].get(
+                            "content",
+                            "No information found."
+                        )
+
+                    else:
+
+                        answer = "No web results found."
+
+                    docs = []
+
+                # ================= PDF RAG =================
+
+                else:
+
+                    answer, docs = generate_answer(
+                        rewritten_question,
+                        retriever
+                    )
+
+                # ================= TRANSLATE BACK =================
+
+                if user_language == "en":
+
+                    final_answer = answer
+
+                else:
+
+                    final_answer = translate_answer(
+                        answer,
+                        user_language
+                    )
+
+                # ================= SOURCES =================
+
+                sources = ""
+
+                if docs:
+
+                    sources = "\n\n📄 Sources:\n"
+
+                    for d in docs:
+
+                        sources += (
+                            f"\n📌 {d.metadata.get('source','Unknown')}"
+                            f" - Page {d.metadata.get('page','?')}"
+                        )
+
+                final_output = final_answer + sources
+
+                # ================= SAVE CHAT =================
+
+                save_chat(
+                    user_question,
+                    final_output,
+                    user_language
+                )
+
+                # ================= DISPLAY =================
+
                 with st.chat_message("assistant"):
                     st.write(final_output)
 
-                # save history
                 st.session_state.chat_history.append({
+
                     "question": user_question,
                     "answer": final_output
+
                 })
 
             except Exception as e:
-                st.error(f"Error generating answer: {e}")
 
+                st.error(
+                    f"Error generating answer: {e}"
+                )
 
 else:
-    st.info("📂 Please upload PDF documents to begin.")
+
+    st.info(
+        "📂 Please upload PDF documents to begin."
+    )
