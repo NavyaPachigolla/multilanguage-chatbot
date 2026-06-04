@@ -1,13 +1,7 @@
 import streamlit as st
 
 from utils.pdf_loader import load_pdfs
-
-from utils.embeddings import (
-    split_documents,
-    create_vectorstore,
-    load_vectorstore
-)
-
+from utils.embeddings import split_documents, create_vectorstore
 from utils.rag_chain import generate_answer
 
 from utils.translator import (
@@ -16,29 +10,48 @@ from utils.translator import (
     translate_answer
 )
 
-from utils.ragas_eval import (
-    run_ragas_evaluation
-)
+from utils.rewriter import rewrite_query
+
+from utils.router import route_query
+from utils.db_tool import get_student
+from utils.tavily_tool import web_search
+
+from db import get_connection
+
+
+# ================= DATABASE SAVE =================
+
+def save_chat(user_msg, bot_msg, language):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    query = """
+    INSERT INTO chat_history
+    (user_message, bot_response, language)
+    VALUES (%s, %s, %s)
+    """
+
+    values = (user_msg, bot_msg, language)
+
+    cursor.execute(query, values)
+
+    conn.commit()
+
+    cursor.close()
+    conn.close()
 
 
 # ================= PAGE CONFIG =================
 
 st.set_page_config(
-
     page_title="Multilingual Multi-Document AI Chatbot",
-
     layout="wide"
 )
 
-
-# ================= TITLE =================
-
-st.title(
-    "📚 Multilingual Multi-Document AI Chatbot"
-)
+st.title("📚 Multilingual Multi-Document AI Chatbot")
 
 st.markdown("""
-
 ### 🌍 Supported Languages
 
 - English
@@ -47,43 +60,35 @@ st.markdown("""
 - Tamil
 - Other Indian Languages
 
+### 🤖 Supported Tools
+
+- PDF RAG Search
+- MySQL Database Search
+- Tavily Web Search
 """)
 
 
 # ================= SESSION STATE =================
 
 if "chat_history" not in st.session_state:
-
     st.session_state.chat_history = []
 
-
 if "retriever" not in st.session_state:
-
     st.session_state.retriever = None
 
 
 # ================= SIDEBAR =================
 
-st.sidebar.header("📂 Upload PDF Files")
+st.sidebar.header("📂 Upload PDFs")
 
 uploaded_files = st.sidebar.file_uploader(
-
-    "Upload one or more PDFs",
-
+    "Upload PDFs",
     type=["pdf"],
-
     accept_multiple_files=True
 )
 
-
-# ================= CLEAR CHAT =================
-
 if st.sidebar.button("🗑 Clear Chat"):
-
     st.session_state.chat_history = []
-
-    st.session_state.retriever = None
-
     st.rerun()
 
 
@@ -93,160 +98,141 @@ if uploaded_files and st.session_state.retriever is None:
 
     with st.spinner("Processing PDFs..."):
 
-        try:
+        documents = load_pdfs(uploaded_files)
 
-            # ================= LOAD PDFS =================
-
-            documents = load_pdfs(
-                uploaded_files
-            )
-
-            if not documents:
-
-                st.error(
-                    "❌ No text extracted from PDFs."
-                )
-
-                st.stop()
-
-
-            # ================= SPLIT DOCUMENTS =================
-
-            chunks = split_documents(
-                documents
-            )
-
-            if not chunks:
-
-                st.error(
-                    "❌ No chunks generated."
-                )
-
-                st.stop()
-
-
-            # ================= LOAD EXISTING VECTORSTORE =================
-
-            existing_vectorstore = load_vectorstore()
-
-
-            # ================= USE EXISTING VECTORSTORE =================
-
-            if existing_vectorstore is not None:
-
-                vectorstore = existing_vectorstore
-
-                st.success(
-                    "✅ Existing Vector Database Loaded!"
-                )
-
-
-            # ================= CREATE NEW VECTORSTORE =================
-
-            else:
-
-                vectorstore = create_vectorstore(
-                    chunks
-                )
-
-                st.success(
-                    "✅ New Vector Database Created!"
-                )
-
-
-            # ================= CREATE RETRIEVER =================
-
-            retriever = vectorstore.as_retriever(
-
-                search_kwargs={"k": 3}
-            )
-
-            st.session_state.retriever = retriever
-
-            st.success(
-                "✅ PDFs processed successfully!"
-            )
-
-        except Exception as e:
-
-            st.error(
-                f"Error processing PDFs: {e}"
-            )
-
+        if not documents:
+            st.error("❌ No text extracted from PDFs.")
             st.stop()
 
+        chunks = split_documents(documents)
 
-# ================= MAIN APP =================
+        if not chunks:
+            st.error("❌ No chunks generated.")
+            st.stop()
+
+        vectorstore = create_vectorstore(chunks)
+
+        st.session_state.retriever = vectorstore.as_retriever(
+            search_kwargs={"k": 5}
+        )
+
+        st.success("✅ PDFs processed successfully!")
+
+
+# ================= CHAT SECTION =================
 
 if st.session_state.retriever is not None:
 
     retriever = st.session_state.retriever
 
-
-    # ================= SHOW CHAT HISTORY =================
-
+    # Display history
     for chat in st.session_state.chat_history:
 
         with st.chat_message("user"):
-
             st.write(chat["question"])
 
-
         with st.chat_message("assistant"):
-
             st.write(chat["answer"])
 
-
-    # ================= CHAT INPUT =================
-
+    # Chat input
     user_question = st.chat_input(
-
-        "Ask questions from uploaded documents..."
+        "Ask questions from documents, database or web..."
     )
-
-
-    # ================= QUESTION PROCESSING =================
 
     if user_question:
 
-        # ================= SHOW USER QUESTION =================
-
         with st.chat_message("user"):
-
             st.write(user_question)
 
-
-        with st.spinner("Generating answer..."):
+        with st.spinner("Thinking..."):
 
             try:
 
-                # ================= DETECT LANGUAGE =================
+                # ================= LANGUAGE DETECTION =================
 
                 user_language = detect_language(
                     user_question
                 )
 
+                english_question = translate_to_english(
+                    user_question
+                )
 
-                # ================= TRANSLATE QUESTION =================
+                rewritten_question = rewrite_query(
+                    english_question
+                )
 
-                english_question = (
-                    translate_to_english(
-                        user_question
+                # ================= ROUTER =================
+
+                route = route_query(
+                    rewritten_question
+                )
+
+                # ================= DATABASE =================
+
+                if route == "database":
+
+                    q = rewritten_question.lower()
+
+                    student = None
+
+                    if "sukruti" in q:
+                        student = get_student("Sukruti")
+
+                    elif "navya" in q:
+                        student = get_student("Navya")
+
+                    elif "ravi" in q:
+                        student = get_student("Ravi")
+
+                    if student:
+
+                        answer = f"""
+Name: {student['name']}
+College: {student['college']}
+CGPA: {student['cgpa']}
+Eligible: {student['eligible']}
+"""
+
+                    else:
+
+                        answer = (
+                            "Student not found in database."
+                        )
+
+                    docs = []
+
+                # ================= WEB SEARCH =================
+
+                elif route == "web":
+
+                    result = web_search(
+                        rewritten_question
                     )
-                )
 
+                    if result.get("results"):
 
-                # ================= GENERATE ANSWER =================
+                        answer = result["results"][0].get(
+                            "content",
+                            "No information found."
+                        )
 
-                answer, source_docs = generate_answer(
+                    else:
 
-                    english_question,
+                        answer = "No web results found."
 
-                    retriever
-                )
+                    docs = []
 
+                # ================= PDF RAG =================
 
-                # ================= TRANSLATE ANSWER =================
+                else:
+
+                    answer, docs = generate_answer(
+                        rewritten_question,
+                        retriever
+                    )
+
+                # ================= TRANSLATE BACK =================
 
                 if user_language == "en":
 
@@ -255,158 +241,52 @@ if st.session_state.retriever is not None:
                 else:
 
                     final_answer = translate_answer(
-
                         answer,
-
                         user_language
                     )
 
-
                 # ================= SOURCES =================
 
-                source_text = "\n\n📄 Sources:\n"
+                sources = ""
 
+                if docs:
 
-                for doc in source_docs:
+                    sources = "\n\n📄 Sources:\n"
 
-                    source = doc.metadata.get(
+                    for d in docs:
 
-                        "source",
+                        sources += (
+                            f"\n📌 {d.metadata.get('source','Unknown')}"
+                            f" - Page {d.metadata.get('page','?')}"
+                        )
 
-                        "Unknown"
-                    )
-
-                    page = doc.metadata.get(
-
-                        "page",
-
-                        "Unknown"
-                    )
-
-                    source_text += (
-
-                        f"\n📌 {source}"
-                        f" — Page {page}"
-                    )
-
-
-                # ================= FINAL RESPONSE =================
-
-                final_response = (
-
-                    final_answer
-                    +
-                    source_text
-                )
-
-
-                # ================= SHOW ANSWER =================
-
-                with st.chat_message("assistant"):
-
-                    st.write(final_response)
-
+                final_output = final_answer + sources
 
                 # ================= SAVE CHAT =================
+
+                save_chat(
+                    user_question,
+                    final_output,
+                    user_language
+                )
+
+                # ================= DISPLAY =================
+
+                with st.chat_message("assistant"):
+                    st.write(final_output)
 
                 st.session_state.chat_history.append({
 
                     "question": user_question,
-
-                    "answer": final_response
+                    "answer": final_output
 
                 })
-
 
             except Exception as e:
 
                 st.error(
                     f"Error generating answer: {e}"
                 )
-
-
-    # ================= RAGAS SECTION =================
-
-    st.divider()
-
-    st.subheader(
-        "📊 RAGAS Evaluation"
-    )
-
-    st.write(
-        "Evaluate chatbot quality using RAGAS metrics."
-    )
-
-
-    if st.button(
-        "🚀 Run RAGAS Evaluation"
-    ):
-
-        with st.spinner(
-            "Running RAGAS Evaluation..."
-        ):
-
-            try:
-
-                ragas_df, scores = (
-
-                    run_ragas_evaluation(
-                        retriever
-                    )
-                )
-
-                st.success(
-                    "✅ RAGAS Evaluation Completed"
-                )
-
-
-                # ================= DETAILED RESULTS =================
-
-                st.subheader(
-                    "📄 Detailed Results"
-                )
-
-                st.dataframe(
-                    ragas_df
-                )
-
-
-                # ================= AVERAGE SCORES =================
-
-                st.subheader(
-                    "📈 Average Scores"
-                )
-
-                st.write(
-
-                    f"Faithfulness: "
-                    f"{scores['Faithfulness']}%"
-                )
-
-                st.write(
-
-                    f"Answer Relevancy: "
-                    f"{scores['Answer Relevancy']}%"
-                )
-
-                st.write(
-
-                    f"Context Precision: "
-                    f"{scores['Context Precision']}%"
-                )
-
-                st.write(
-
-                    f"Context Recall: "
-                    f"{scores['Context Recall']}%"
-                )
-
-            except Exception as e:
-
-                st.error(
-                    f"RAGAS Error: {e}"
-                )
-
 
 else:
 
