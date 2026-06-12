@@ -3,6 +3,9 @@ from langchain_core.documents import Document
 from PyPDF2 import PdfReader
 
 from pdf2image import convert_from_path
+import easyocr
+import numpy as np
+
 
 import pytesseract
 
@@ -95,6 +98,55 @@ def extract_text_ocr(pdf_path):
 
     return documents
 
+def extract_text_easyocr(pdf_path):
+
+    print("EasyOCR Started...")
+
+    documents = []
+
+    reader = easyocr.Reader(
+        ['en'],
+        gpu=False
+    )
+
+    images = convert_from_path(
+        pdf_path,
+        dpi=300
+    )
+
+    print(f"Total Pages: {len(images)}")
+
+    for page_num, image in enumerate(images):
+
+        print(f"Processing Page {page_num + 1}")
+
+        image_np = np.array(image)
+
+        results = reader.readtext(
+            image_np,
+            detail=0,
+            paragraph=True
+        )
+
+        text = "\n".join(results)
+
+        print(text[:500])
+
+        if text.strip():
+
+            documents.append(
+                Document(
+                    page_content=text,
+                    metadata={
+                        "source": os.path.basename(pdf_path),
+                        "page": page_num + 1
+                    }
+                )
+            )
+
+    print("EasyOCR Finished")
+
+    return documents
 
 def load_pdfs(uploaded_files):
 
@@ -130,10 +182,10 @@ def load_pdfs(uploaded_files):
         if len(documents) == 0:
 
             print(
-                "Using OCR for scanned PDF..."
+                "Using EasyOCR..."
             )
 
-            documents = extract_text_ocr(
+            documents = extract_text_easyocr(
                 temp_pdf_path
             )
 
