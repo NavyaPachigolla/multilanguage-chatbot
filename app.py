@@ -1,11 +1,8 @@
 import streamlit as st
-
+from graph.workflow import graph
 from utils.pdf_loader import load_pdfs
 from utils.embeddings import split_documents, create_vectorstore
-from utils.rag_chain import (
-    generate_answer,
-    generate_web_answer
-)
+
 from streamlit_mic_recorder import mic_recorder
 from utils.speech_to_text import transcribe
 from utils.text_to_speech import generate_voice
@@ -20,9 +17,9 @@ from utils.translator import (
 
 from utils.rewriter import rewrite_query
 
-from utils.router import route_query
+
 #from utils.db_tool import get_student
-from utils.tavily_tool import web_search
+
 
 from db import get_connection
 VOICE_MAP = {
@@ -46,6 +43,17 @@ def save_chat(user_msg, bot_msg, language):
 
     conn = get_connection()
     cursor = conn.cursor()
+    conn = get_connection()
+
+
+    cursor.execute("SELECT * FROM chat_history")
+
+    rows = cursor.fetchall()
+
+    st.write(rows)
+
+    cursor.close()
+    conn.close()
 
     query = """
     INSERT INTO chat_history
@@ -149,14 +157,26 @@ if uploaded_files and st.session_state.retriever is None:
 retriever = st.session_state.retriever
 
 # Display history
-for chat in st.session_state.chat_history:
+# ================= CHAT HISTORY =================
 
-    with st.chat_message("user"):
-        st.write(chat["question"])
+for i, chat in enumerate(st.session_state.chat_history):
 
-    with st.chat_message("assistant"):
-        st.write(chat["answer"])
+    col1, col2 = st.columns([10, 1])
 
+    with col1:
+        with st.chat_message("user"):
+            st.write(chat["question"])
+
+        with st.chat_message("assistant"):
+            st.write(chat["answer"])
+
+    with col2:
+
+        if st.button("🗑", key=f"delete_{i}"):
+
+            st.session_state.chat_history.pop(i)
+
+            st.rerun()
 # Language Selection
 selected_lang = st.selectbox(
     "🌍 Select Input Language",
@@ -217,42 +237,18 @@ if user_question:
                     english_question
                 )
 
-                # ================= ROUTER =================
+                # ================= LANGGRAPH =================
 
-                route = "web"
+                result = graph.invoke({
+                     "question": rewritten_question,
 
-                # ================= DATABASE =================
+                     "retriever": retriever
 
-                if route == "database":
-                     answer = "Database feature temporarily disabled."
-                     docs = []
+                })
 
-                # ================= WEB SEARCH =================
+                answer = result["final_answer"]
 
-                elif route == "web":
-                    web_context=web_search(
-                        rewritten_question
-                    )
-                    answer=generate_web_answer(
-                        rewritten_question,
-                        web_context
-                    )
-
-                    docs = []
-
-                # ================= PDF RAG =================
-
-                else:
-                    if retriever is None:
-                        answer="""No PDF uploaded.
-                        Please upload a PDF for document-based questions."""
-                        docs=[]
-                    else:
-                        answer,docs=generate_answer(
-                            rewritten_question,
-                            retriever
-                        )
-
+                docs = []
                     
 
                 # ================= TRANSLATE BACK =================

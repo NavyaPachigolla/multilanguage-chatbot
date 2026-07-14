@@ -23,12 +23,14 @@ llm = GroqLLM()
 # ================= MAIN FUNCTION =================
 
 def generate_answer(question, retriever):
+    print("QUESTION =", question)
 
     try:
 
         # ================= RETRIEVE =================
 
         docs = retriever.invoke(question)
+        print("DOCS FOUND =", len(docs))
 
         if not docs:
             return "The uploaded documents do not contain this information.", []
