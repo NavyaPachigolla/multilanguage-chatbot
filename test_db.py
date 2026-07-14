@@ -1,3 +1,9 @@
-from utils.db_tool import get_student
+from db import get_connection
 
-print(get_student("Sukruti"))
+try:
+    conn = get_connection()
+    print("Database Connected Successfully")
+    conn.close()
+
+except Exception as e:
+    print("Error:", e)

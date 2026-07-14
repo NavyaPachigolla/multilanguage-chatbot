@@ -1,9 +1,14 @@
 import streamlit as st
-
+from graph.workflow import graph
 from utils.pdf_loader import load_pdfs
 from utils.embeddings import split_documents, create_vectorstore
-from utils.rag_chain import generate_answer
 
+from streamlit_mic_recorder import mic_recorder
+from utils.speech_to_text import transcribe
+from utils.text_to_speech import generate_voice
+
+import asyncio
+from langdetect import detect
 from utils.translator import (
     detect_language,
     translate_to_english,
@@ -12,12 +17,25 @@ from utils.translator import (
 
 from utils.rewriter import rewrite_query
 
-from utils.router import route_query
-from utils.db_tool import get_student
-from utils.tavily_tool import web_search
+
+#from utils.db_tool import get_student
+
 
 from db import get_connection
-
+VOICE_MAP = {
+    "te": "te-IN-ShrutiNeural",
+    "hi": "hi-IN-SwaraNeural",
+    "en": "en-IN-NeerjaNeural",
+    "ta": "ta-IN-PallaviNeural",
+    "kn": "kn-IN-SapnaNeural",
+    "ml": "ml-IN-SobhanaNeural"
+}
+LANGUAGE_MAP = {
+    "English": "en",
+    "Telugu": "te",
+    "Hindi": "hi",
+    "Tamil": "ta"
+}
 
 # ================= DATABASE SAVE =================
 
@@ -25,6 +43,17 @@ def save_chat(user_msg, bot_msg, language):
 
     conn = get_connection()
     cursor = conn.cursor()
+    conn = get_connection()
+
+
+    cursor.execute("SELECT * FROM chat_history")
+
+    rows = cursor.fetchall()
+
+    st.write(rows)
+
+    cursor.close()
+    conn.close()
 
     query = """
     INSERT INTO chat_history
@@ -121,23 +150,69 @@ if uploaded_files and st.session_state.retriever is None:
 
 # ================= CHAT SECTION =================
 
-if st.session_state.retriever is not None:
 
-    retriever = st.session_state.retriever
 
-    # Display history
-    for chat in st.session_state.chat_history:
+    # ================= CHAT SECTION =================
 
+retriever = st.session_state.retriever
+
+# Display history
+# ================= CHAT HISTORY =================
+
+for i, chat in enumerate(st.session_state.chat_history):
+
+    col1, col2 = st.columns([10, 1])
+
+    with col1:
         with st.chat_message("user"):
             st.write(chat["question"])
 
         with st.chat_message("assistant"):
             st.write(chat["answer"])
 
-    # Chat input
-    user_question = st.chat_input(
-        "Ask questions from documents, database or web..."
+    with col2:
+
+        if st.button("🗑", key=f"delete_{i}"):
+
+            st.session_state.chat_history.pop(i)
+
+            st.rerun()
+# Language Selection
+selected_lang = st.selectbox(
+    "🌍 Select Input Language",
+    ["English", "Telugu", "Hindi", "Tamil"]
+)
+
+# Voice Input
+audio = mic_recorder(
+    start_prompt="🎤 Ask by Voice",
+    stop_prompt="⏹ Stop Recording",
+    key="mic"
+)
+
+# Text Input
+user_question = st.chat_input(
+    "Ask anything... Upload PDF only if needed."
+)
+
+# Voice to Text
+if audio:
+
+    with open("temp.wav", "wb") as f:
+        f.write(audio["bytes"])
+
+    lang_code = LANGUAGE_MAP[selected_lang]
+
+    user_question = transcribe(
+        "temp.wav",
+        lang_code
     )
+
+    st.success(
+        f"🎤 You said: {user_question}"
+    )
+
+if user_question:
 
     if user_question:
 
@@ -162,75 +237,19 @@ if st.session_state.retriever is not None:
                     english_question
                 )
 
-                # ================= ROUTER =================
+                # ================= LANGGRAPH =================
 
-                route = route_query(
-                    rewritten_question
-                )
+                result = graph.invoke({
+                     "question": rewritten_question,
 
-                # ================= DATABASE =================
+                     "retriever": retriever
 
-                if route == "database":
+                })
 
-                    q = rewritten_question.lower()
+                answer = result["final_answer"]
 
-                    student = None
-
-                    if "sukruti" in q:
-                        student = get_student("Sukruti")
-
-                    elif "navya" in q:
-                        student = get_student("Navya")
-
-                    elif "ravi" in q:
-                        student = get_student("Ravi")
-
-                    if student:
-
-                        answer = f"""
-Name: {student['name']}
-College: {student['college']}
-CGPA: {student['cgpa']}
-Eligible: {student['eligible']}
-"""
-
-                    else:
-
-                        answer = (
-                            "Student not found in database."
-                        )
-
-                    docs = []
-
-                # ================= WEB SEARCH =================
-
-                elif route == "web":
-
-                    result = web_search(
-                        rewritten_question
-                    )
-
-                    if result.get("results"):
-
-                        answer = result["results"][0].get(
-                            "content",
-                            "No information found."
-                        )
-
-                    else:
-
-                        answer = "No web results found."
-
-                    docs = []
-
-                # ================= PDF RAG =================
-
-                else:
-
-                    answer, docs = generate_answer(
-                        rewritten_question,
-                        retriever
-                    )
+                docs = []
+                    
 
                 # ================= TRANSLATE BACK =================
 
@@ -261,19 +280,50 @@ Eligible: {student['eligible']}
                         )
 
                 final_output = final_answer + sources
+                try:
+                    lang = LANGUAGE_MAP[selected_lang]
+                    voice=VOICE_MAP.get(
+                        lang,
+                        "en-IN-NeerjaNeural"
+
+                    )
+                    asyncio.run(
+                        generate_voice(
+                            final_answer,
+                            "answer.mp3",
+                            voice
+                        )
+                    )
+                except Exception as e:
+                    print(e)    
+
+
+
+
+
+
+
+
+
+
+                
 
                 # ================= SAVE CHAT =================
 
-                save_chat(
-                    user_question,
-                    final_output,
-                    user_language
-                )
+                #save_chat(
+                   # user_question,
+                   # final_output,
+                    #user_language
+                #)
 
                 # ================= DISPLAY =================
 
                 with st.chat_message("assistant"):
                     st.write(final_output)
+                    try:
+                        st.audio("answer.mp3")
+                    except:
+                        pass    
 
                 st.session_state.chat_history.append({
 
@@ -288,8 +338,3 @@ Eligible: {student['eligible']}
                     f"Error generating answer: {e}"
                 )
 
-else:
-
-    st.info(
-        "📂 Please upload PDF documents to begin."
-    )

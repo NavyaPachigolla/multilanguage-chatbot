@@ -23,12 +23,14 @@ llm = GroqLLM()
 # ================= MAIN FUNCTION =================
 
 def generate_answer(question, retriever):
+    print("QUESTION =", question)
 
     try:
 
         # ================= RETRIEVE =================
 
         docs = retriever.invoke(question)
+        print("DOCS FOUND =", len(docs))
 
         if not docs:
             return "The uploaded documents do not contain this information.", []
@@ -111,3 +113,46 @@ ANSWER:
             "The uploaded documents do not contain this information.",
             []
         )
+def generate_web_answer(question, web_context):
+
+    try:
+
+        prompt = f"""
+You are a helpful AI assistant.
+
+Answer the question using the web search results.
+
+Keep the answer:
+- Short
+- Accurate
+- Direct
+
+QUESTION:
+{question}
+
+WEB RESULTS:
+{web_context}
+
+ANSWER:
+"""
+
+        messages = [
+            {
+                "role": "system",
+                "content": "Answer using the web search results."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        answer = llm.generate(messages)
+
+        return answer
+
+    except Exception as e:
+
+        print("Web Error:", e)
+
+        return "Unable to generate web answer."

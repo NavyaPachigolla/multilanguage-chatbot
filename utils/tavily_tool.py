@@ -1,7 +1,6 @@
 from tavily import TavilyClient
 from dotenv import load_dotenv
 import os
-import re
 
 load_dotenv()
 
@@ -13,18 +12,15 @@ def web_search(query):
 
     result = client.search(
         query=query,
-        search_depth="basic",
-        max_results=1
+        search_depth="advanced",
+        max_results=3
     )
 
-    if result.get("results"):
+    context = ""
 
-        content = result["results"][0]["content"]
+    for item in result.get("results", []):
 
-        # remove markdown symbols
-        content = re.sub(r"#", "", content)
-        content = content.replace("*", "")
+        context += item.get("content", "")
+        context += "\n\n"
 
-        result["results"][0]["content"] = content
-
-    return result
+    return context

@@ -8,5 +8,4 @@ def get_connection():
         database="chatbot_db",
         port=3306
     )
-
     return conn

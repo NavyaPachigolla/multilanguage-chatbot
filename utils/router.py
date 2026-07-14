@@ -33,6 +33,15 @@ def route_query(query):
         "sports",
         "president",
         "prime minister",
+
+        "cm",
+        "chief minister",
+        "governor",
+        "minister",
+        "andhra pradesh",
+        "telangana",
+        "india",
+
         "weather",
         "stock",
         "share price",
@@ -71,7 +80,16 @@ def route_query(query):
 
     if any(word in query for word in web_keywords):
         return "web"
-
+    general_question_words = [
+        "who",
+        "what",
+        "when",
+        "where",
+        "which",
+        "current"
+    ]
+    if any(word in query for word in general_question_words):
+        return "web"
     # ================= DEFAULT =================
 
     return "rag"
